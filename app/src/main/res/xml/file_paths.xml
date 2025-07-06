@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <!--
+      This grants FileProvider access to the 'files' directory
+      within your app's internal storage. The 'name' is what we'll use
+      in our code, and the 'path' is the directory name. "." means the root
+      of that directory type.
+    -->
+    <files-path
+        name="internal_files"
+        path="." />
+</paths>
