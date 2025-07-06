@@ -5,6 +5,9 @@ plugins {
 android {
     namespace = "com.example.safandfileprovider"
     compileSdk = 35
+    buildFeatures{
+        buildConfig = true
+    }
 
     defaultConfig {
         applicationId = "com.example.safandfileprovider"

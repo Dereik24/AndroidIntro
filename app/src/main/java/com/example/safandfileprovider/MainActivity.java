@@ -9,6 +9,7 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.Toast;
 
+import com.example.safandfileprovider.BuildConfig;
 
 import androidx.activity.EdgeToEdge;
 import androidx.activity.result.ActivityResultLauncher;
@@ -108,8 +109,8 @@ public class MainActivity extends AppCompatActivity {
 
         // 3. Get a secure URI for the internal file using FileProvider
         // The authority must match what you declared in AndroidManifest.xml
-        String authority = "com.example.safandfileprovider.fileprovider";
-        Uri internalFileUri = FileProvider.getUriForFile(this, authority, internalFile);
+        Uri internalFileUri = FileProvider.getUriForFile(this,
+                BuildConfig.APPLICATION_ID + ".fileprovider", internalFile);
 
         // 4. Create the destination file in the public folder and copy the content
         DocumentFile newFile = targetDirectory.createFile("text/plain", fileName);
