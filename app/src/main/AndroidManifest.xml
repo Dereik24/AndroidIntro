@@ -37,6 +37,7 @@
             android:exported="true">
             <intent-filter>
                 <action android:name="com.example.safandfileprovider.action.EXPORT_FILE" />
+                <action android:name="com.example.safandfileprovider.action.IMPORT_FILE" />
             </intent-filter>
         </receiver>
 

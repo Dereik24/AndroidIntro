@@ -8,6 +8,7 @@ import android.net.Uri;
 import android.util.Log;
 import android.widget.Toast;
 
+import androidx.core.content.FileProvider;
 import androidx.documentfile.provider.DocumentFile;
 
 import java.io.File;
@@ -16,7 +17,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
-
+import java.util.Objects;
 
 public class AdbFileReceiver extends BroadcastReceiver {
 
@@ -24,33 +25,45 @@ public class AdbFileReceiver extends BroadcastReceiver {
     private static final String PREFS_NAME = "MyPrefsFile";
     private static final String KEY_SELECTED_URI = "selectedUri";
 
-    // This is the "action" string we will use in our ADB command.
-    // It's like a unique channel name for our broadcast.
     public static final String ACTION_EXPORT_FILE = "com.example.safandfileprovider.action.EXPORT_FILE";
+    // --- NEW: Action and Extra for the import command ---
+    public static final String ACTION_IMPORT_FILE = "com.example.safandfileprovider.action.IMPORT_FILE";
+    public static final String EXTRA_FILENAME = "com.example.safandfileprovider.extra.FILENAME";
+
 
     @Override
     public void onReceive(Context context, Intent intent) {
-        // This method is called when the receiver gets a broadcast that matches its intent filter.
-        if (context != null && intent != null && ACTION_EXPORT_FILE.equals(intent.getAction())) {
-            Log.d(TAG, "Received export file broadcast command.");
+        // --- MODIFIED: This method now acts as a switchboard ---
+        if (context == null || intent == null || intent.getAction() == null) {
+            return;
+        }
 
-            // We show a Toast to give visual feedback that the command was received.
-            Toast.makeText(context, "ADB command received!", Toast.LENGTH_SHORT).show();
+        // Check which action was received and call the appropriate method.
+        String action = intent.getAction();
+        Log.d(TAG, "Received broadcast with action: " + action);
 
-            // The logic here is nearly identical to the exportDummyFile method in MainActivity.
-            // We are re-using the same principles.
+        if (ACTION_EXPORT_FILE.equals(action)) {
+            Toast.makeText(context, "Export command received!", Toast.LENGTH_LONG).show();
             exportFileFromCommand(context);
+        } else if (ACTION_IMPORT_FILE.equals(action)) {
+            // --- NEW: Handle the import action ---
+            Toast.makeText(context, "Import command received!", Toast.LENGTH_LONG).show();
+            // Get the filename to import from the intent's "extra" data.
+            String filename = intent.getStringExtra(EXTRA_FILENAME);
+            if (filename == null || filename.isEmpty()) {
+                Log.e(TAG, "Import command received without a filename.");
+                return;
+            }
+            importFileFromCommand(context, filename);
         }
     }
 
     private void exportFileFromCommand(Context context) {
-        // 1. Get the saved folder URI from SharedPreferences
         SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
         String uriString = prefs.getString(KEY_SELECTED_URI, null);
 
         if (uriString == null) {
             Log.e(TAG, "No folder URI saved. Cannot export file.");
-            // Note: We can't show a Toast here reliably if the app isn't in the foreground. Logging is better.
             return;
         }
 
@@ -62,8 +75,6 @@ public class AdbFileReceiver extends BroadcastReceiver {
             return;
         }
 
-        // In a real app, you would get the file to export from the intent's extras.
-        // For now, we'll just create the same dummy file.
         String fileName = "data_from_adb.txt";
         String fileContents = "This file was created by an ADB command at " + System.currentTimeMillis();
         File internalFile = new File(context.getFilesDir(), fileName);
@@ -75,10 +86,8 @@ public class AdbFileReceiver extends BroadcastReceiver {
             return;
         }
 
-        // NOTE: We are hardcoding the authority here because getting the BuildConfig
-        // can be tricky in a BroadcastReceiver. This is a safe and common practice.
         String authority = "com.example.safandfileprovider.fileprovider";
-        Uri internalFileUri = androidx.core.content.FileProvider.getUriForFile(context, authority, internalFile);
+        Uri internalFileUri = FileProvider.getUriForFile(context, authority, internalFile);
 
         DocumentFile newFile = targetDirectory.createFile("text/plain", fileName);
         if (newFile == null) {
@@ -102,6 +111,54 @@ public class AdbFileReceiver extends BroadcastReceiver {
 
         } catch (IOException e) {
             Log.e(TAG, "File copy failed via ADB", e);
+        }
+    }
+
+
+    private void importFileFromCommand(Context context, String filename) {
+        // 1. Get the saved folder URI from SharedPreferences
+        SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        String uriString = prefs.getString(KEY_SELECTED_URI, null);
+
+        if (uriString == null) {
+            Log.e(TAG, "No folder URI saved. Cannot import file.");
+            return;
+        }
+
+        // 2. Find the source file in the public directory
+        Uri folderUri = Uri.parse(uriString);
+        DocumentFile sourceDirectory = DocumentFile.fromTreeUri(context, folderUri);
+        if (sourceDirectory == null) {
+            Log.e(TAG, "Could not access source directory: " + uriString);
+            return;
+        }
+
+        DocumentFile sourceFile = sourceDirectory.findFile(filename);
+        if (sourceFile == null || !sourceFile.exists() || !sourceFile.canRead()) {
+            Log.e(TAG, "Source file not found or cannot be read: " + filename);
+            return;
+        }
+
+        // 3. Define the destination file in our app's private internal storage
+        File destinationFile = new File(context.getFilesDir(), filename);
+
+        // 4. Copy the file contents
+        try (InputStream in = context.getContentResolver().openInputStream(sourceFile.getUri());
+             OutputStream out = new FileOutputStream(destinationFile)) {
+
+            if (in == null) {
+                throw new IOException("Failed to open input stream for source file.");
+            }
+
+            byte[] buffer = new byte[1024];
+            int length;
+            while ((length = in.read(buffer)) > 0) {
+                out.write(buffer, 0, length);
+            }
+            Log.d(TAG, "File '" + filename + "' imported successfully into internal storage!");
+
+        } catch (IOException e) {
+            Log.e(TAG, "File import failed for: " + filename, e);
         }
     }
 }
